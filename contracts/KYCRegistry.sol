@@ -1,186 +1,97 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity ^0.8.17;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import "./Verifier.sol";
+  // Ensure this is the correct path
+ // Import your zk-SNARK verifier
 
-contract KYCRegistry is Ownable {
-    enum KYCStatus { Unverified, Pending, Verified, Rejected }
+contract KYCRegistry {
+    address public owner;
+    IZKVerifier public verifier;
 
-    struct User {
-        string userId;  // Unique user identifier (hashed from personal data)
-        address wallet;
-        KYCStatus status;
-        uint256 timestamp;
+    mapping(address => bool) public isKYCVerified;
+
+    event KYCVerified(address indexed user);
+
+    constructor(address _verifier) {
+        owner = msg.sender;
+        verifier = IZKVerifier(_verifier); // Verifier contract
     }
 
-    mapping(address => User) public users;
-    mapping(address => bool) public kycVerifiers;
-    
-    event KYCRequested(address indexed user, string userId);
-    event KYCApproved(address indexed user);
-    event KYCRejected(address indexed user, string reason);
-    event KYCRevoked(address indexed user);
-    event VerifierAdded(address indexed verifier);
-    event VerifierRemoved(address indexed verifier);
-
-    modifier onlyVerifier() {
-        require(kycVerifiers[msg.sender], "Not an authorized verifier");
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can verify KYC");
         _;
     }
 
-    constructor() {
-        kycVerifiers[msg.sender] = true;  // Contract deployer is the first verifier
+    function verifyKYC(
+        address user,
+        uint256[2] memory a,
+        uint256[2][2] memory b,
+        uint256[2] memory c,
+        uint256[1] memory input
+    ) external onlyOwner {
+        require(!isKYCVerified[user], "User is already KYC verified");
+        
+        bool valid = verifier.verifyProof(a, b, c, input);
+        require(valid, "Invalid proof");
+
+        isKYCVerified[user] = true;
+        emit KYCVerified(user);
     }
 
-    function requestKYC(string memory _userId) external {
-        require(users[msg.sender].status == KYCStatus.Unverified, "KYC already requested or verified");
-
-        users[msg.sender] = User({
-            userId: _userId,
-            wallet: msg.sender,
-            status: KYCStatus.Pending,
-            timestamp: block.timestamp
-        });
-
-        emit KYCRequested(msg.sender, _userId);
-    }
-
-    function approveKYC(address _user) external onlyVerifier {
-        require(users[_user].status == KYCStatus.Pending, "User not in pending state");
-
-        users[_user].status = KYCStatus.Verified;
-        require(users[_user].status == KYCStatus.Verified, "KYC status update failed"); // Ensures persistence
-
-        emit KYCApproved(_user);
-    }
-
-    function rejectKYC(address _user, string memory _reason) external onlyVerifier {
-        require(users[_user].status == KYCStatus.Pending, "User not in pending state");
-
-        users[_user].status = KYCStatus.Rejected;
-        require(users[_user].status == KYCStatus.Rejected, "KYC rejection failed"); // Ensures persistence
-
-        emit KYCRejected(_user, _reason);
-    }
-
-    function revokeKYC(address _user) external onlyVerifier {
-        require(users[_user].status == KYCStatus.Verified, "User is not verified");
-
-        users[_user].status = KYCStatus.Unverified;
-        require(users[_user].status == KYCStatus.Unverified, "KYC revocation failed"); // Ensures persistence
-
-        emit KYCRevoked(_user);
-    }
-
-    function addVerifier(address _verifier) external onlyOwner {
-        kycVerifiers[_verifier] = true;
-        emit VerifierAdded(_verifier);
-    }
-
-    function removeVerifier(address _verifier) external onlyOwner {
-        kycVerifiers[_verifier] = false;
-        emit VerifierRemoved(_verifier);
-    }
-
-    function getUserStatus(address _user) external view returns (KYCStatus) {
-        return users[_user].status;
-    }
-
-    function isUserVerified(address _user) external view returns (bool) {
-        return users[_user].status == KYCStatus.Verified;
-    }
-
-    function isVerifier(address _verifier) external view returns (bool) {
-        return kycVerifiers[_verifier];
+    function checkKYC(address user) external view returns (bool) {
+        return isKYCVerified[user];
     }
 }
 
+interface IZKVerifier {
+    function verifyProof(
+        uint256[2] memory a,
+        uint256[2][2] memory b,
+        uint256[2] memory c,
+        uint256[1] memory input
+    ) external view returns (bool);
+}
 
-// pragma solidity 0.8.19;
 
-// import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-// import {Counters} from "@openzeppelin/contracts/utils/Counters.sol";
+// pragma solidity ^0.8.20;
 
-// contract KYCRegistry is Ownable {
-//     using Counters for Counters.Counter;
+// import "@openzeppelin/contracts/access/Ownable.sol";
+// import "@iden3/contracts/interfaces/IZKVerifier.sol";
 
-//     enum KYCStatus { Unverified, Pending, Verified, Rejected }
-
+// contract ZKKYC is Ownable {
 //     struct User {
-//         string userId;  // Unique user identifier (hashed from personal data)
-//         address wallet;
-//         KYCStatus status;
-//         uint256 timestamp;
+//         bool kycVerified;
 //     }
 
 //     mapping(address => User) public users;
-//     mapping(address => bool) public kycVerifiers;
+//     IZKVerifier public verifier;
+
+//     event KYCRequested(address indexed user);
+//     event KYCVerified(address indexed user);
+
+//     constructor(address _verifier) {
+//         verifier = IZKVerifier(_verifier);
+//     }
+
+//     function requestKYC() external {
+//         require(!users[msg.sender].kycVerified, "KYC already verified");
+//         emit KYCRequested(msg.sender);
+//     }
+
+//     function verifyKYC(
+//         address user,
+//         uint256[2] memory a,
+//         uint256[2][2] memory b,
+//         uint256[2] memory c,
+//         uint256[1] memory input
+//     ) external onlyOwner {
+//         require(verifier.verifyProof(a, b, c, input), "Invalid ZK proof");
+//         users[user].kycVerified = true;
+//         emit KYCVerified(user);
+//     }
     
-//     event KYCRequested(address indexed user, string userId);
-//     event KYCApproved(address indexed user);
-//     event KYCRejected(address indexed user, string reason);
-//     event KYCRevoked(address indexed user);
-//     event VerifierAdded(address indexed verifier);
-//     event VerifierRemoved(address indexed verifier);
-
-//     modifier onlyVerifier() {
-//         require(kycVerifiers[msg.sender], "Not an authorized verifier");
-//         _;
-//     }
-
-//     constructor() {
-//         kycVerifiers[msg.sender] = true;  // Contract deployer is the first verifier
-//     }
-
-//     function requestKYC(string memory _userId) external {
-//         require(users[msg.sender].status == KYCStatus.Unverified, "KYC already requested or verified");
-
-//         users[msg.sender] = User({
-//             userId: _userId,
-//             wallet: msg.sender,
-//             status: KYCStatus.Pending,
-//             timestamp: block.timestamp
-//         });
-
-//         emit KYCRequested(msg.sender, _userId);
-//     }
-
-//     function approveKYC(address _user) external onlyVerifier {
-//         require(users[_user].status == KYCStatus.Pending, "User not in pending state");
-
-//         users[_user].status = KYCStatus.Verified;
-//         emit KYCApproved(_user);
-//     }
-
-//     function rejectKYC(address _user, string memory _reason) external onlyVerifier {
-//         require(users[_user].status == KYCStatus.Pending, "User not in pending state");
-
-//         users[_user].status = KYCStatus.Rejected;
-//         emit KYCRejected(_user, _reason);
-//     }
-
-//     function revokeKYC(address _user) external onlyVerifier {
-//         require(users[_user].status == KYCStatus.Verified, "User is not verified");
-
-//         users[_user].status = KYCStatus.Unverified;
-//         emit KYCRevoked(_user);
-//     }
-
-//     function addVerifier(address _verifier) external onlyOwner {
-//         kycVerifiers[_verifier] = true;
-//         emit VerifierAdded(_verifier);
-//     }
-
-//     function removeVerifier(address _verifier) external onlyOwner {
-//         kycVerifiers[_verifier] = false;
-//         emit VerifierRemoved(_verifier);
-//     }
-
-//     function getUserStatus(address _user) external view returns (KYCStatus) {
-//         return users[_user].status;
-//     }
-
-//     function isUserVerified(address _user) external view returns (bool) {
-//         return users[_user].status == KYCStatus.Verified;
+//     function isKYCVerified(address user) external view returns (bool) {
+//         return users[user].kycVerified;
 //     }
 // }

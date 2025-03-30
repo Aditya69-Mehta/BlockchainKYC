@@ -1,15 +1,17 @@
-const hre = require("hardhat");
+const { ethers } = require("hardhat");
 
 async function main() {
-    const KYCRegistry = await hre.ethers.getContractFactory("KYCRegistry"); 
-    const kycRegistry = await KYCRegistry.deploy(); 
+    console.log("Deploying Verifier contract...");
 
-    await kycRegistry.waitForDeployment(); 
+    const Verifier = await ethers.getContractFactory("Groth16Verifier"); // Use the correct contract name
+    const verifier = await Verifier.deploy(); // Deploy the contract
 
-    console.log("KYCRegistry deployed to:", await kycRegistry.getAddress());
+    await verifier.waitForDeployment(); // Wait for deployment (correct method in ethers v6)
+    
+    console.log(`Verifier deployed to: ${await verifier.getAddress()}`);
 }
 
 main().catch((error) => {
     console.error(error);
-    process.exitCode = 1;
+    process.exit(1);
 });
